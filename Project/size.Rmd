@@ -1,0 +1,434 @@
+---
+title: 'Project Multivariate and Hierarchical Data'
+output:
+  pdf_document: pdf_document
+  word_document: default
+  html_document: html_document
+  always_allow_html: true
+subtitle: Apu Chandra Bhowmick(10/01/25)
+---
+
+```{r}
+# Load libraries
+library(lme4)      # For mixed models
+library(ggplot2)   # For plotting
+library(dplyr)     # For data manipulation
+library(lmerTest) 
+library(dplyr)
+library(multcomp)
+```
+
+```{r}
+size_data <- read.csv("D:/Second Semester/Project Multivariate and Hierarchical Data/Project/G10.size.data.csv")
+```
+
+```{r}
+str(size_data)
+head(size_data)
+size_data
+
+```
+
+```{r}
+sum(size_data$size < 0)
+```
+
+
+```{r}
+size_data$climate <- as.factor(size_data$climate)
+size_data$species <- as.factor(size_data$species)
+size_data$tree_id <- as.factor(size_data$tree_id)
+size_data$time <- as.numeric(size_data$time) 
+```
+
+
+```{r}
+summary(size_data)
+```
+## Model with Slope Explanation:
+
+We are modeling pear size over time, accounting for:
+
+Fixed effects: time, climate, species
+
+Random effects: variability among individual pears (pear_id), optionally allowing each pear to grow at its own rate (random slope)
+
+Explanation: Allows each pear to have its own starting size (intercept) and growth rate (slope over time).
+
+More flexible, captures individual growth trajectories.
+
+Warning: boundary (singular) fit: This means the model might be too complex — the variance of the slope might be close to zero or highly correlated with the intercept (as we see here: correlation = -1.00). 
+* A singular fit occurs when one or more random effects are estimated to have:
+* Variance ≈ 0 (i.e., not contributing anything to the model), or
+* Perfect or near-perfect correlation with another random effect (e.g., correlation = ±1.00).
+
+* Variance for slope is small (0.01246), possibly unidentifiable.
+* Lower REML(Restricted Maximum Likelihood) = 14217.8 means
+## Model Interpretion: 
+Time: Highly significant positive effect → pears grow ~0.51 cm/week.
+
+Climate Scenarios: Scenario 2 and 3 significantly reduce growth compared to Scenario 1.
+
+Species: Doyenne pears are ~0.89 cm smaller than baseline (Conference).
+
+```{r}
+# 4. Fit Linear Mixed Models
+
+## 4a. Random intercept model (basic model)
+model1 <- lmer(size ~ 0 + time : climate : species + (0 + time | pear_id), data = size_data)
+summary(model1)
+
+```
+```{r}
+growth_model_lmer <- lmer(
+  size ~ 0 + species : climate : time + (0 + time  | pear_id),
+  data    = size_data
+)
+print(drop1(growth_model_lmer))
+summary(growth_model_lmer)
+```
+
+```{r}
+summary_output <- summary(growth_model_lmer)
+fixed_effects <- summary_output$coefficients
+
+fixed_effects_df <- as.data.frame(fixed_effects)
+fixed_effects_df$bonf_p <- p.adjust(fixed_effects_df$`Pr(>|t|)`, method = "bonferroni")
+print(fixed_effects_df)
+
+```
+
+```{r}
+library(emmeans)
+
+emm <- emmeans(growth_model_lmer, ~ species * climate)
+
+comparison_results <- contrast(emm, method = "pairwise", adjust = "bonferroni")
+
+summary(comparison_results)
+
+
+```
+```{r}
+library(multcomp)
+mcp_test <- glht(growth_model_lmer, linfct = mcp(species = "Tukey"))
+summary(mcp_test, test = adjusted("bonferroni"))
+
+```
+
+
+```{r}
+
+```
+## Simple Model Explanation 
+*Allows each pear to have a different starting size only.
+*Assumes same growth rate over time for all pears.
+## Output 
+*Higher REML = 16099.4 → worse fit than Model 1.
+*No singular fit warning → more stable, but less flexible.
+
+## Model interpretation 
+Similar interpretation, but:
+*Species Doyenne now has a stronger negative effect (1.89 cm smaller).
+*Slightly stronger climate scenario effects (Scenario 2 and 3 more negative).
+
+
+## Conclusion 
+Model 1 fits better, but the singular fit suggests that the random slope for time may not be needed or that the model is too complex for your data.
+
+```{r}
+model2 <- lmer(size ~ time + climate + species + (1| pear_id), data = size_data)
+summary(model2)
+```
+
+## Uncorrelated Model Explanation
+*This model allows time to vary by pear, but doesn’t estimate the correlation with the intercept.
+*It’s a simpler and more stable version of Model 1
+
+##Benefits
+*No singular fit
+*Lower REML/AIC
+*Reasonable variance estimates
+
+##Model fit:
+
+* The REML criterion (14422.1) is higher than the correlated slope model (14217.8) but much lower than the simple model (16099.4), indicating it's a good compromise.
+* No singular fit warning, so the model is statistically sound.
+
+##Fixed effects:
+
+*Time is still a strong, significant positive predictor of size.
+*The effect of climate scenarios is no longer significant (p > 0.05), suggesting the differences between them might not be strong once random variation in growth is modeled properly.
+*Species effect remains significant (Doyenne leads to smaller size).
+
+##Random effects:
+
+There's clear variability between trees in both starting size (intercept) and growth rate over time (slope for time), but they're not correlated, which avoids the previous overfitting problem.
+
+```{r}
+model_uncorrelated <- lmer(size ~ time + climate + species + (1 | pear_id) + (0 + time | pear_id), data = size_data)
+summary(model_uncorrelated)
+```
+
+```{r}
+model_doublepipe <- lmer(size ~ time + climate + species + (time || pear_id), data = size_data)
+
+summary(model_doublepipe)
+```
+
+```{r}
+anova(model2, model_uncorrelated)
+```
+
+```{r}
+anova(model2, model_doublepipe)
+```
+
+```{r}
+library(ggeffects)
+library(ggplot2)
+
+# Get predicted values for time and climate
+preds <- ggpredict(model_uncorrelated, terms = c("time", "climate"))
+
+# Plot
+ggplot(preds, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) +
+  labs(title = "Predicted Pear Size Over Time by Climate Scenario",
+       x = "Time (Weeks)", y = "Predicted Size (cm)",
+       color = "Climate", fill = "Climate") +
+  theme_minimal()
+```
+
+```{r}
+# Get predicted values for time and species
+pred_species <- ggpredict(model_uncorrelated, terms = c("time", "species"))
+
+# Plot
+ggplot(pred_species, aes(x = x, y = predicted, color = group)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, color = NA) +
+  labs(title = "Predicted Pear Size Over Time by Species",
+       x = "Time (Weeks)", y = "Predicted Size (cm)",
+       color = "Species", fill = "Species") +
+  theme_minimal()
+```
+
+
+* Lower AIC/BIC values indicate a better model fit with a penalty for complexity.
+If Model 1 (with random slopes) has substantially lower AIC/BIC, it's worth keeping.
+
+
+14217.8
+```{r}
+AIC(model1, model2)
+BIC(model1, model2)
+
+```
+
+```{r}
+size_data$pred_model1 <- predict(model1)
+size_data$pred_model2 <- predict(model2)
+
+```
+
+```{r}
+ggplot(size_data, aes(x = time, y = size, color = climate)) +
+  geom_point(alpha = 0.3) +
+  geom_line(aes(y = pred_model1), linewidth = 1.2) +
+  labs(title = "Model 1 Predictions: Observed vs Predicted Size",
+       y = "Size", x = "Week") +
+  theme_minimal()
+
+```
+
+```{r}
+ggplot(size_data, aes(x = time, y = size, color = climate)) +
+  geom_point(alpha = 0.3) +
+  geom_line(aes(y = pred_model2), size = 1) +
+  labs(title = "Model 2 Predictions: Observed vs Predicted Size",
+       y = "Size", x = "Week") +
+  theme_minimal()
+
+```
+
+```{r}
+facet_wrap(~species)
+
+```
+
+
+
+```{r}
+ggplot(size_data, aes(x = time, y = size, color = climate)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Pear Size Over Time by Climate Scenario",
+       x = "Week",
+       y = "Pear Size (cm)",
+       color = "Climate Scenario") +
+  theme_minimal()
+```
+
+```{r}
+
+# Count how many observations per group
+table(size_data$climate, size_data$time)
+
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Calculate mean size per week per climate
+mean_size_by_group <- size_data %>%
+  group_by(time, climate) %>%
+  summarise(mean_size = mean(size), .groups = "drop")
+
+# Plot manually
+ggplot(mean_size_by_group, aes(x = time, y = mean_size, color = climate)) +
+  geom_line(linewidth = 1.2) +
+  geom_point() +
+  labs(title = "Average Pear Size Over Time by Climate Scenario",
+       x = "Week",
+       y = "Mean Size (cm)",
+       color = "Climate Scenario") +
+  theme_minimal()
+
+```
+
+```{r}
+
+# Calculate mean size by time, climate, and species
+mean_size_species <- size_data %>%
+  group_by(time, climate, species) %>%
+  summarise(mean_size = mean(size), .groups = "drop")
+
+# Plot with facets
+ggplot(mean_size_species, aes(x = time, y = mean_size, color = climate)) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~ species) +
+  labs(title = "Pear Size Over Time by Climate Scenario and Species",
+       x = "Week", y = "Mean Size (cm)") +
+  theme_minimal()
+
+
+```
+
+
+```{r}
+ggplot(size_data, aes(x = time, y = size, color = climate)) +
+  stat_summary(fun = mean, geom = "line", linewidth = 1.2) +
+  stat_summary(fun.data = mean_cl_normal, geom = "ribbon", aes(fill = climate), alpha = 0.2, color = NA) +
+  labs(title = "Pear Size with Confidence Bands",
+       x = "Week", y = "Size (cm)") +
+  theme_minimal()
+
+```
+
+
+```{r}
+ggplot(filter(size_data, time == 24), aes(x = climate, y = size, fill = climate)) +
+  geom_boxplot() +
+  labs(title = "Pear Size Distribution at Harvest (Week 24)",
+       x = "Climate Scenario", y = "Pear Size (cm)") +
+  theme_minimal()
+
+```
+
+```{r}
+
+# 1) Compute the mean size per week × scenario × species
+mean_growth <- size_data %>%
+  group_by(time, climate, species) %>%
+  summarise(mean_size = mean(size, na.rm = TRUE), .groups="drop")
+View(mean_growth)
+
+# 2) Plot with scenario→color and species→linetype
+ggplot(mean_growth, aes(
+  x        = time,
+  y        = mean_size,
+  color    = climate,
+  linetype = species,
+  group    = interaction(climate, species)
+)) +
+  geom_line(size = 1) +
+  scale_color_brewer(
+    palette = "Set2",
+    name    = "Scenario"
+  ) +
+  scale_linetype_manual(
+    values = c("Conference" = "solid",
+               "Doyenne"    = "dashed"),
+    name   = "Species"
+  ) +
+  labs(
+    title    = "Mean Pear Growth Curves by Scenario and Species",
+    x        = "Week",
+    y        = "Mean Diameter (cm)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    axis.text.x    = element_text(size = 8)
+  )
+
+```
+
+```{r}
+ggplot(size_data, aes(x = time, y = size, group = pear_id, color = climate)) +
+  geom_line(alpha = 0.1) +
+  labs(title = "Individual Pear Growth Trajectories",
+       x = "Week", y = "Size (cm)") +
+  theme_minimal()
+
+```
+
+
+```{r}
+ggplot(filter(size_data, time == 24), aes(x = climate, y = size, fill = climate)) +
+  geom_violin(trim = FALSE, alpha = 0.6) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) +
+  labs(title = "Distribution of Pear Sizes at Week 24 by Climate",
+       x = "Climate Scenario", y = "Pear Size (cm)") +
+  theme_minimal()
+
+```
+
+
+
+
+```{r}
+library(reshape2)
+heat_data <- size_data %>%
+  group_by(time, climate) %>%
+  summarise(mean_size = mean(size), .groups = "drop") %>%
+  dcast(time ~ climate, value.var = "mean_size")
+
+# Melt again for ggplot heatmap
+heat_data_melt <- melt(heat_data, id.vars = "time")
+
+ggplot(heat_data_melt, aes(x = time, y = variable, fill = value)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  labs(title = "Heatmap of Mean Pear Size",
+       x = "Week", y = "Climate Scenario", fill = "Mean Size") +
+  theme_minimal()
+
+```
+
+
+```{r}
+
+ggplot(size_data, aes(x = time, y = size, color = species)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Pear Size Over Time by Species",
+       x = "Week",
+       y = "Pear Size (cm)",
+       color = "Species") +
+  theme_minimal()
+
+```

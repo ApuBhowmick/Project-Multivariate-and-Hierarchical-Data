@@ -1,0 +1,19 @@
+---
+title: 'Programming in R: Solutions for the exam part 1 (13/12/2024)'
+output:
+  word_document: default
+  pdf_document: pdf_document
+  html_document: html_document
+  always_allow_html: true
+subtitle: Apu Chandra Bhowmick(10/01/25)
+---
+
+##Equation for size data\\
+
+$Y_{ij} = \sum_{k=1}^4\beta_{k} \cdot C_{ki}\cdot t_j + \sum_{k=5}^6\beta_{k} \cdot S_{(k-4)i}\cdot t_j + b_i \cdot t_j + \epsilon_{ij}$
+
+
+```{r}
+
+```
+

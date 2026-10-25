@@ -1,0 +1,255 @@
+```{r}
+library(lme4)
+library(lmerTest)  # For p-values
+library(ggplot2)
+library(dplyr)
+library(readr)
+```
+
+```{r}
+size_data <- read.csv("D:/First Year Resit Exam/Project Multivariate and Hierarchical Data/Project/G10.size.data.csv")
+```
+
+
+```{r}
+size_data$climate <- as.factor(size_data$climate)
+size_data$species <- as.factor(size_data$species)
+size_data$tree_id <- as.factor(size_data$tree_id)
+size_data$time <- as.numeric(size_data$time) 
+```
+
+
+```{r}
+model <- lmer(size ~ 0 + climate:time + species:time + climate:species:time + (0 + time | pear_id), data = size_data, 
+              REML = FALSE)
+
+# Summarize the model
+summary(model)
+```
+
+```{r}
+model2 <- lmer(size ~ 0 + time : climate + species : time + (0 + time | pear_id), data = size_data, REML = FALSE)
+  
+# Summarize the model
+summary(model2)
+confint(model2)
+```
+```{r}
+vc <- VarCorr(model2)
+vc
+
+# EB (BLUP) random effects
+re <- ranef(model2, condVar = TRUE)$pear_id  # columns: (Intercept), time
+re$pear_id <- rownames(re)
+
+# Summaries for the random slope
+summ <- re %>% summarize(
+  mean = mean(time), sd = sd(time),
+  p05 = quantile(time, 0.05), p50 = median(time),
+  p95 = quantile(time, 0.95), min = min(time), max = max(time)
+)
+summ
+
+# Caterpillar plot (random slopes with intervals)
+library(ggplot2)
+re_ord <- re %>% arrange(time) %>% mutate(rank = row_number())
+ggplot(re_ord, aes(rank, time)) + geom_point() +
+  labs(x = "Pear (ordered)", y = "EB random slope (deviation)")
+```
+
+
+
+```{r}
+library(lme4)
+
+# Apply quadratic transformation to time
+size_data$quad_time <- poly(size_data$time, 2)
+
+# Fit the mixed model with quadratic time and interactions
+model_quad <- lmer(size ~ quad_time : climate + species : quad_time + (1 + quad_time | pear_id), 
+                   data = size_data, REML = FALSE)
+
+# Summarize results
+summary(model_quad)
+
+
+
+```
+
+```{r}
+size_data$log_size <- log(size_data$size + 1)  # Ensure no log(0) errors
+model_exp <- lmer(log_size ~ time : climate + species : time + (1 + time | pear_id), 
+                  data = size_data, REML = FALSE)
+summary(model_exp)
+```
+
+
+
+
+```{r}
+anova(model_poly)
+```
+
+```{r}
+anova(model2)
+
+```
+
+
+
+```{r}
+anova(model_quad, model2)
+```
+
+
+
+```{r}
+# Aggregate mean and CI for plot
+plot_data <- size_data %>%
+  group_by(time, climate, species) %>%
+  summarise(mean_size = mean(size), .groups = "drop")
+
+# Plot with centered title
+ggplot(plot_data, aes(x = time, y = mean_size, color = climate, linetype = species)) +
+  geom_line(size = 1.1) +
+  labs(title = "Pear Growth Over Time by Climate and Species",
+       x = "Week",
+       y = "Average Size (cm)",
+       color = "Climate",
+       linetype = "Species") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+```
+
+
+
+```{r}
+#+=========================================================================
+# 1. Load emmeans and fit your model (if not already done)
+library(emmeans)
+# assume your model is named `growth_model_lmer`
+
+# 2. Extract the estimated slopes ("trends") for time by species×climate
+trends <- emtrends(
+  model2,
+  ~ species * climate,  # this creates one estimate per species:climate
+  var = "time",  pbkrtest.limit = 5000
+)
+
+# 3. Check the order of the levels, so you know how the contrast vectors map
+summary(trends)
+# It will list the 8 combinations in this order by default:
+#   1 Conference:Scenario1
+#   2 Doyenne:Scenario1
+#   3 Conference:Scenario2
+#   4 Doyenne:Scenario2
+#   5 Conference:Scenario3
+#   6 Doyenne:Scenario3
+#   7 Conference:Scenario4
+#   8 
+
+# 4. Define your contrasts exactly as in SAS:
+my_contrasts <- list(
+  "C_1 vs C_2" = c( 1,  0, -1,  0,  0,  0,  0,  0),
+  "C_1 vs C_3" = c( 1,  0,  0,  0, -1,  0,  0,  0),
+  "C_1 vs C_4" = c( 1,  0,  0,  0,  0,  0, -1,  0),
+  "D_1 vs D_2" = c( 0,  1,  0, -1,  0,  0,  0,  0),
+  "D_1 vs D_3" = c( 0,  1,  0,  0,  0, -1,  0,  0),
+  "D_1 vs D_4" = c( 0,  1,  0,  0,  0,  0,  0, -1),
+  "C_1 vs D_1" = c( 1, -1,  0,  0,  0,  0,  0,  0)
+)
+
+# 5. Apply the contrasts with a Bonferroni correction (or none, as you wish)
+contrast_results <- contrast(trends, method = my_contrasts, adjust = "bonferroni")
+
+# 6. Summarize
+summary(contrast_results)
+confint(contrast_results)
+
+```
+
+
+```{r}
+# Plot observed vs fitted
+plot(fitted(model2), resid(model2))
+abline(h = 0, col = "red")
+
+```
+
+
+```{r}
+# Histogram of residuals
+hist(resid(model2), breaks = 40, main = "Histogram of residuals", xlab = "Residuals")
+
+# Q-Q plot
+qqnorm(resid(model2))
+qqline(resid(model2), col = "red")
+
+```
+
+
+```{r}
+qqnorm(ranef(model2)$pear_id[,"time"])
+qqline(ranef(model2)$pear_id[,"time"], col = "red")
+
+```
+
+
+
+
+
+```{r}
+library(nlme)
+
+model_ar1 <- lme(
+  size ~ 0 + time:climate + species:time,
+  random = ~ time | pear_id,
+  correlation = corAR1(form = ~ time | pear_id),
+  data = size_data,
+  method = "ML"
+)
+
+
+
+```
+
+
+```{r}
+qqnorm(resid(model2))
+qqline(resid(model2), col = "red")
+
+```
+
+
+```{r}
+hist(resid(model2), breaks = 50, main = "Histogram of Residuals", xlab = "Residuals")
+
+```
+
+
+```{r}
+qqnorm(ranef(model2)$pear_id[,"time"])
+qqline(ranef(model2)$pear_id[,"time"], col = "red")
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+
+```{r}
+
+```

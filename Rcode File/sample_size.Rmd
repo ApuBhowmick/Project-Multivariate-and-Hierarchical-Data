@@ -1,0 +1,261 @@
+```{r}
+#library 
+library(ggplot2)
+```
+
+```{r}
+#Load Data
+data <- read.csv("D:/Second Semester/Project Multivariate and Hierarchical Data/G10.pilot.data.csv")
+head(data)
+```
+
+```{r}
+sum(rowSums(is.na(data)) > 0)
+```
+
+```{r}
+summary(data)
+```
+
+```{r}
+#SD value
+sd <- sd(data$quality_index)
+sd
+```
+
+```{r}
+# Define parameters
+alpha <- 0.05
+power <- 0.80
+effect_sizes <- seq(10, 25, by = 1)  # Vary effect size from 5 to 20
+```
+
+
+```{r}
+# Compute required sample sizes for different effect sizes
+sample_sizes <- sapply(effect_sizes, function(delta) {
+  result <- power.t.test(delta = delta, sd = sd_value, sig.level = alpha, power = power, type = "two.sample", alternative = "one.sided")
+  return(result$n)
+})
+
+```
+
+
+```{r}
+# Create a data frame for plotting
+sample_size_df <- data.frame(Effect_Size = effect_sizes, Sample_Size = sample_sizes)
+sample_size_df
+```
+
+
+```{r}
+# Plot sample size curves
+ggplot(sample_size_df, aes(x = Effect_Size, y = Sample_Size)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red") +
+  labs(title = "Sample Size vs Effect Size", x = "Effect Size", y = "Required Sample Size") +
+  theme_minimal()
+```
+
+```{r}
+# Define parameters for significance level
+alpha_values <- seq(0.01, 0.1, by = 0.01) 
+effect_size_10 <- 10  # Fixed effect size of 10
+effect_size_15 <- 15
+
+```
+
+```{r}
+sample_sizes <- sapply(alpha_values, function(alpha) {
+  result <- power.t.test(delta = effect_size_10, sd = sd_value, sig.level = alpha, power = power, type = "two.sample", alternative = "one.sided")
+  return(result$n)
+})
+```
+
+```{r}
+# Create a data frame for plotting
+sample_size_df <- data.frame(Significance_Level = alpha_values, Sample_Size = sample_sizes)
+
+sample_size_df
+```
+
+```{r}
+# Plot sample size vs. significance level
+ggplot(sample_size_df, aes(x = Significance_Level, y = Sample_Size)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red") +
+  labs(title = "Sample Size vs Significance Level (Alpha)", 
+       x = "Significance Level (Alpha)", 
+       y = "Required Sample Size") +
+  theme_minimal()
+```
+
+
+```{r}
+sample_sizes <- sapply(alpha_values, function(alpha) {
+  result <- power.t.test(delta = effect_size_15, sd = sd_value, sig.level = alpha, power = power, type = "two.sample", alternative = "one.sided")
+  return(result$n)
+})
+```
+
+```{r}
+# Create a data frame for plotting
+sample_size_df <- data.frame(Significance_Level = alpha_values, Sample_Size = sample_sizes)
+
+sample_size_df
+```
+
+```{r}
+# Plot sample size vs. significance level
+ggplot(sample_size_df, aes(x = Significance_Level, y = Sample_Size)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red") +
+  labs(title = "Sample Size vs Significance Level (Alpha)", 
+       x = "Significance Level (Alpha)", 
+       y = "Required Sample Size") +
+  theme_minimal()
+```
+
+```{r}
+alpha <- 0.05
+effect_size_10 <- 10  # Change to 15 if needed
+effect_size_15 <- 15
+sample_sizes <- seq(10, 100, by = 5)  # Sample sizes from 10 to 100
+```
+
+```{r}
+# Compute power for each sample size
+power_values <- sapply(sample_sizes, function(n) {
+  result <- power.t.test(n = n, delta = effect_size_10, sd = sd_value, sig.level = alpha, type = "two.sample", alternative = "one.sided")
+  return(result$power)
+})
+```
+
+```{r}
+power_df <- data.frame(Sample_Size = sample_sizes, Power = power_values)
+power_df
+```
+
+```{r}
+ggplot(power_df, aes(x = Sample_Size, y = Power)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red") +
+  labs(title = "Power vs Sample Size", 
+       x = "Sample Size", 
+       y = "Power") +
+  theme_minimal() +
+  geom_hline(yintercept = 0.8, linetype = "dashed", color = "black") + # Reference line at 80% power
+  annotate("text", x = 50, y = 0.82, label = "80% Power Threshold", color = "black", size = 5)
+```
+
+```{r}
+# Compute power for each sample size
+power_values <- sapply(sample_sizes, function(n) {
+  result <- power.t.test(n = n, delta = effect_size_15, sd = sd_value, sig.level = alpha, type = "two.sample", alternative = "one.sided")
+  return(result$power)
+})
+```
+
+```{r}
+power_df <- data.frame(Sample_Size = sample_sizes, Power = power_values)
+power_df
+```
+
+```{r}
+ggplot(power_df, aes(x = Sample_Size, y = Power)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red") +
+  labs(title = "Power vs Sample Size", 
+       x = "Sample Size", 
+       y = "Power") +
+  theme_minimal() +
+  geom_hline(yintercept = 0.8, linetype = "dashed", color = "black") + # Reference line at 80% power
+  annotate("text", x = 50, y = 0.82, label = "80% Power Threshold", color = "black", size = 5)
+```
+
+```{r}
+library(ggplot2)
+
+# Load data
+data <- read.csv("D:/Second Semester/Project Multivariate and Hierarchical Data/G10.pilot.data.csv")
+
+# Compute standard deviation of quality_index
+sd_value <- sd(data$quality_index, na.rm = TRUE)
+
+# Define parameters
+alpha <- 0.05
+sample_sizes <- seq(10, 250, by = 5)
+effect_sizes <- c(10, 15, 20, 25)
+
+# Compute power
+power_df <- expand.grid(Sample_Size = sample_sizes, Effect_Size = effect_sizes)
+power_df$Power <- mapply(function(n, es) {
+  result <- power.t.test(n = n, delta = es, sd = sd_value, sig.level = alpha, type = "two.sample", alternative = "one.sided")
+  return(result$power)
+}, power_df$Sample_Size, power_df$Effect_Size)
+
+# Convert Effect_Size to factor
+power_df$Effect_Size <- as.factor(power_df$Effect_Size)
+
+# Create a data frame for horizontal lines with power thresholds
+power_lines <- data.frame(
+  Power = c(0.80, 0.85, 0.90),
+  Label = as.factor(c("Power = 0.80", "Power = 0.85", "Power = 0.90"))
+)
+
+# Plot
+ggplot(power_df, aes(x = Sample_Size, y = Power, color = Effect_Size)) +
+  geom_line(size = 1) +
+  geom_point() +
+  geom_hline(data = power_lines, aes(yintercept = Power, linetype = Label), color = "black") +
+  labs(
+    title = "Power vs Sample Size for Different Effect Sizes",
+    x = "Sample Size",
+    y = "Power",
+    color = "Effect Size",
+    linetype = "Power Threshold"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # Center title
+  )
+
+```
+
+```{r}
+# Load necessary library
+library(ggplot2)
+
+# Compute standard deviation of quality_index from your pilot data
+data <- read.csv("D:/Second Semester/Project Multivariate and Hierarchical Data/G10.pilot.data.csv")
+sd_value <- sd(data$quality_index, na.rm = TRUE)
+
+# Parameters
+alpha <- 0.05
+power_values <- seq(0.80, 0.90, by = 0.05)   # Power from 0.80 to 0.90
+effect_sizes <- seq(10, 25, by = 5)          # Effect size from 10 to 25
+
+# Calculate required sample sizes
+sample_size_df <- expand.grid(Power = power_values, Effect_Size = effect_sizes)
+sample_size_df$Sample_Size <- mapply(function(pwr, eff) {
+  res <- power.t.test(delta = eff, sd = sd_value, sig.level = alpha, power = pwr, type = "two.sample", alternative = "one.sided")
+  return(res$n)
+}, sample_size_df$Power, sample_size_df$Effect_Size)
+
+sample_size_df
+
+```
+
+```{r}
+ggplot(sample_size_df, aes(x = Effect_Size, y = Sample_Size, color = as.factor(Power))) +
+  geom_line(size = 1) +
+  labs(
+    title = "Required Sample Size vs. Effect Size for Different Power Levels",
+    x = "Effect Size",
+    y = "Required Sample Size (per group)",
+    color = "Power"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
